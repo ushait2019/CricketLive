@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v5
 
       - name: Set up Java
         uses: actions/setup-java@v6
@@ -20,40 +20,39 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
       - name: Extract Android project
         run: |
           mkdir -p project
           unzip -o "CricketLive_FINAL_USHA_IT_RemoteReady_v3_Fixed.zip" -d project
 
-      - name: Find Gradle project
+      - name: Check Android project
         run: |
-          GRADLEW=$(find project -type f -name gradlew | head -n 1)
+          echo "Project files:"
+          find project -maxdepth 3 -type f | sort | head -100
 
-          if [ -z "$GRADLEW" ]; then
-            echo "ERROR: gradlew file not found!"
-            echo "Extracted files:"
-            find project -maxdepth 4 -type f | head -n 100
+          if [ ! -f "project/settings.gradle.kts" ] && [ ! -f "project/settings.gradle" ]; then
+            echo "ERROR: Gradle settings file not found!"
             exit 1
           fi
 
-          echo "Found Gradle wrapper:"
-          echo "$GRADLEW"
-
-          PROJECT_DIR=$(dirname "$GRADLEW")
-
-          echo "GRADLEW=$GRADLEW" >> "$GITHUB_ENV"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
-      - name: Make Gradle executable
-        run: chmod +x "$GRADLEW"
+          if [ ! -f "project/build.gradle.kts" ] && [ ! -f "project/build.gradle" ]; then
+            echo "ERROR: Gradle build file not found!"
+            exit 1
+          fi
 
       - name: Build APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: ./gradlew assembleDebug --stacktrace
+        working-directory: project
+        run: |
+          gradle --no-daemon assembleDebug --stacktrace
 
       - name: Upload APK
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: CricketLive-APK
-          path: |
-            ${{ env.PROJECT_DIR }}/**/build/outputs/apk/**/*.apk
+          path: project/**/build/outputs/apk/**/*.apk
+          if-no-files-found: error
